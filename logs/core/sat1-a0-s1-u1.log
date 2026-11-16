@@ -1,0 +1,6 @@
+11/15 16:54:36.226: [upf] INFO: [Removed] Number of UPF-sessions is now 5 (../src/upf/context.c:256)
+11/15 16:54:36.433: [upf] INFO: [Removed] Number of UPF-sessions is now 4 (../src/upf/context.c:256)
+11/15 16:54:36.433: [upf] INFO: [Removed] Number of UPF-sessions is now 3 (../src/upf/context.c:256)
+11/15 16:54:36.434: [upf] INFO: [Removed] Number of UPF-sessions is now 2 (../src/upf/context.c:256)
+11/15 16:54:36.434: [upf] INFO: [Removed] Number of UPF-sessions is now 1 (../src/upf/context.c:256)
+11/15 16:54:36.434: [upf] INFO: [Removed] Number of UPF-sessions is now 0 (../src/upf/context.c:256)

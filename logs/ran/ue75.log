@@ -1,0 +1,8 @@
+[2026-11-15 16:54:37.911] [nas] [debug] De-registration required due to [DISABLE-5G]
+[2026-11-15 16:54:37.921] [nas] [debug] Starting de-registration procedure due to [DISABLE-5G]
+[2026-11-15 16:54:37.921] [nas] [debug] Performing local release of PDU session[1]
+[2026-11-15 16:54:37.921] [nas] [info] UE switches to state [MM-DEREGISTER-INITIATED]
+[2026-11-15 16:54:38.130] [rrc] [debug] RRC Release received
+[2026-11-15 16:54:38.130] [nas] [debug] De-registration accept received
+[2026-11-15 16:54:38.130] [nas] [info] UE switches to state [MM-NULL]
+[2026-11-15 16:54:38.130] [nas] [info] De-registration is successful

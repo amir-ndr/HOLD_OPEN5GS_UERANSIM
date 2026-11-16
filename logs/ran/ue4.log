@@ -1,0 +1,11 @@
+[2026-11-15 16:54:35.918] [rrc] [info] [xn-ho] UE: handover command received, target nci=0x110
+[2026-11-15 16:54:35.918] [rrc] [info] [xn-ho] UE: serving cell 1 -> 2, staying RRC-CONNECTED
+[2026-11-15 16:54:35.918] [rrc] [info] [xn-ho] UE: RRCReconfigurationComplete -> cell[2]
+[2026-11-15 16:54:36.225] [nas] [debug] De-registration required due to [DISABLE-5G]
+[2026-11-15 16:54:36.235] [nas] [debug] Starting de-registration procedure due to [DISABLE-5G]
+[2026-11-15 16:54:36.235] [nas] [debug] Performing local release of PDU session[1]
+[2026-11-15 16:54:36.235] [nas] [info] UE switches to state [MM-DEREGISTER-INITIATED]
+[2026-11-15 16:54:36.261] [nas] [debug] De-registration accept received
+[2026-11-15 16:54:36.261] [nas] [info] UE switches to state [MM-NULL]
+[2026-11-15 16:54:36.261] [nas] [info] De-registration is successful
+[2026-11-15 16:54:36.261] [rrc] [debug] RRC Release received

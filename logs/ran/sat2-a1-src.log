@@ -1,0 +1,46 @@
+[2026-11-15 16:54:35.981] [xn] [debug] Xn: received: {"type":"XnHandoverRequest","ueId":1,"sti":5392196228664065536,"amfUeNgapId":1,"ranUeNgapId":6613,"sliceSst":1,"sourceGnb":"127.0.30.24","sessions":"1,3537,7f00162e,1"}
+[2026-11-15 16:54:35.981] [xn] [info] [xn-ho] TARGET: XnHandoverRequest from 127.0.30.24 | sti=0x4ad4ede6a0b8fe00 sst=1 sessions=1
+[2026-11-15 16:54:35.981] [xn] [info] [xn-ho] TARGET: XnHandoverAck sent, awaiting UE arrival | nci=0x40
+[2026-11-15 16:54:35.991] [ngap] [info] [xn-ho] SOURCE: handover requested ue=16 target=127.0.30.24:38422 sti=0x48035534a88ae66d
+[2026-11-15 16:54:35.991] [ngap] [debug] Xn: HandoverAck received: {"type":"XnHandoverAck","ueId":16,"sliceSst":1,"status":"OK","targetCell":"UERANSIM-gnb-999-70-20","targetNci":320,"selectedAmf":"127.0.0.5","pswLatencyMs":0.0}
+[2026-11-15 16:54:35.991] [ngap] [info] [xn-ho] SOURCE: XnHandoverAck ok in 0ms, target nci=0x140
+[2026-11-15 16:54:35.991] [ngap] [info] [xn-ho] SOURCE: context released locally (no RRC Release sent) | ue=16 sst=1
+[2026-11-15 16:54:35.991] [ngap] [info] [xn-ho] SOURCE: handover requested ue=5 target=127.0.30.24:38422 sti=0x2a62b3989316e0f3
+[2026-11-15 16:54:35.991] [rrc] [info] [xn-ho] SOURCE: RRCReconfiguration(reconfigurationWithSync) -> UE[16], target nci=0x140
+[2026-11-15 16:54:35.991] [ngap] [debug] Xn: HandoverAck received: {"type":"XnHandoverAck","ueId":5,"sliceSst":1,"status":"OK","targetCell":"UERANSIM-gnb-999-70-20","targetNci":320,"selectedAmf":"127.0.0.5","pswLatencyMs":0.0}
+[2026-11-15 16:54:35.991] [ngap] [info] [xn-ho] SOURCE: XnHandoverAck ok in 0ms, target nci=0x140
+[2026-11-15 16:54:35.991] [ngap] [info] [xn-ho] SOURCE: context released locally (no RRC Release sent) | ue=5 sst=1
+[2026-11-15 16:54:35.991] [ngap] [info] [xn-ho] SOURCE: handover requested ue=18 target=127.0.30.24:38422 sti=0x1b764f86398690d
+[2026-11-15 16:54:35.991] [rrc] [info] [xn-ho] SOURCE: RRCReconfiguration(reconfigurationWithSync) -> UE[5], target nci=0x140
+[2026-11-15 16:54:35.992] [ngap] [debug] Xn: HandoverAck received: {"type":"XnHandoverAck","ueId":18,"sliceSst":1,"status":"OK","targetCell":"UERANSIM-gnb-999-70-20","targetNci":320,"selectedAmf":"127.0.0.5","pswLatencyMs":0.0}
+[2026-11-15 16:54:35.992] [ngap] [info] [xn-ho] SOURCE: XnHandoverAck ok in 1ms, target nci=0x140
+[2026-11-15 16:54:35.992] [ngap] [info] [xn-ho] SOURCE: context released locally (no RRC Release sent) | ue=18 sst=1
+[2026-11-15 16:54:35.992] [rrc] [info] [xn-ho] SOURCE: RRCReconfiguration(reconfigurationWithSync) -> UE[18], target nci=0x140
+[2026-11-15 16:54:35.993] [rrc] [info] [xn-ho] TARGET: UE arrived, ueId=1 sti=0x4ad4ede6a0b8fe00, creating RRC context
+[2026-11-15 16:54:35.994] [ngap] [info] [xn-ho] TARGET: PathSwitchRequest -> AMF | ueId=1 srcAmfId=1 ranUeId=6636 sessions=1
+[2026-11-15 16:54:35.995] [ngap] [debug] PathSwitchRequestAcknowledge received
+[2026-11-15 16:54:35.997] [ngap] [info] PDU session resource(s) setup for UE[1] count[1]
+[2026-11-15 16:54:35.997] [ngap] [info] [xn-ho] TARGET: COMPLETE ueId=1 sst=1 sessions=1 | arrival=12.173ms psw=3.764ms total=15.937ms
+[2026-11-15 16:54:35.997] [gtp] [error] Unhandled GTP-U message type: 254
+[2026-11-15 16:54:35.997] [gtp] [error] Unhandled GTP-U message type: 254
+[2026-11-15 16:54:35.997] [gtp] [error] Unhandled GTP-U message type: 254
+[2026-11-15 16:54:35.999] [gtp] [error] Unhandled GTP-U message type: 254
+[2026-11-15 16:54:36.003] [gtp] [error] Unhandled GTP-U message type: 254
+[2026-11-15 16:54:36.003] [gtp] [error] Unhandled GTP-U message type: 254
+[2026-11-15 16:54:36.003] [gtp] [error] Unhandled GTP-U message type: 254
+[2026-11-15 16:54:37.492] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.492] [rrc] [info] Releasing RRC connection for UE[1]
+[2026-11-15 16:54:37.504] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.505] [rrc] [info] Releasing RRC connection for UE[2]
+[2026-11-15 16:54:37.734] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.734] [rrc] [info] Releasing RRC connection for UE[6]
+[2026-11-15 16:54:37.736] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.736] [rrc] [info] Releasing RRC connection for UE[4]
+[2026-11-15 16:54:37.737] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.737] [rrc] [info] Releasing RRC connection for UE[15]
+[2026-11-15 16:54:37.738] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.738] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.738] [rrc] [info] Releasing RRC connection for UE[17]
+[2026-11-15 16:54:37.738] [ngap] [debug] UE Context Release Command received
+[2026-11-15 16:54:37.738] [rrc] [info] Releasing RRC connection for UE[14]
+[2026-11-15 16:54:37.738] [rrc] [info] Releasing RRC connection for UE[7]
