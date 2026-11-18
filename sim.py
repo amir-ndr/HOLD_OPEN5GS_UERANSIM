@@ -40,8 +40,9 @@ def mean(v):
 
 
 def run(T=T, V=V, alpha=ALPHA, rho=RHO, b_max=B_MAX, seed=SEED, events=EVENTS, cost=COST,
-        gamma=GAMMA, on_done=None):
-    """on_done(t, jobs): called with the jobs that left their leaf in slot t (testbed.py)."""
+        gamma=GAMMA, on_done=None, on_slot=None):
+    """on_done(t, jobs): called with the jobs that left their leaf in slot t (testbed.py).
+    on_slot(t, Y, fb): called with the allocation and the telemetry of slot t (regret.py)."""
     env, alg = Env(seed, events, cost, gamma), Hold(V, alpha, rho, b_max)
     log = {k: {i: [] for i in NODES} for k in ("B", "Z", "Q", "util", "used", "got", "cap", "cost", "budget", "n", "wait", "proc", "x", "viol", "arr")}
     slots, gsum = [], {i: 0.0 for i in NODES}
@@ -50,6 +51,8 @@ def run(T=T, V=V, alpha=ALPHA, rho=RHO, b_max=B_MAX, seed=SEED, events=EVENTS, c
         fb = env.slot(t, Y)
         if on_done:
             on_done(t, fb["done"])
+        if on_slot:
+            on_slot(t, Y, fb)
         for i, n in NODES.items():                     # flow constraint of the applied Y[t]
             g = (fb["gamma"] if i == ROOT else fb["lam"][n.parent, i] * Y[n.parent, i]) - alg.B[i]
             gsum[i] += g

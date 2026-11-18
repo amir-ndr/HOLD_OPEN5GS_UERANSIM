@@ -4,10 +4,10 @@ HOLD implemented from scratch on the updated paper (System Model + Algorithm 1,
 "Multi-Stage Handover"). Only HOLD: no baselines, no latency model, no Kingman
 formula, no CPU quotas.
 
-## Status now (15 Nov 2026)
+## Status now (16 Nov 2026)
 
-* Steps 1–4 are done; step 5 (cost, tuning, results) is done except choosing the final paper
-  figures.
+* Steps 1–5 are done. Step 6 (checking the results against the paper's claims) is in progress:
+  see "Plan and progress".
 * All experiments were run on the current environment (random capacity, TN +10 %, four busy
   periods, cost `own / power4 / quad / plain`): `sim.py`, `study.py sweep`, `study.py costs`
   and `testbed.py`. Results are in `results/sim/`, `results/study/`, `results/testbed/`.
@@ -28,7 +28,7 @@ a node that gets congested.
 
 | Layer | What it is | Files |
 |---|---|---|
-| **The model** (Python) | The tree of nodes, the jobs, the queue of every node, the CPU capacity of every node, the cost, and Algorithm 1. All decisions and all congestion happen here | `tree.py`, `env.py`, `hold.py`, `sim.py`, `study.py` |
+| **The model** (Python) | The tree of nodes, the jobs, the queue of every node, the CPU capacity of every node, the cost, and Algorithm 1. All decisions and all congestion happen here | `tree.py`, `env.py`, `hold.py`, `sim.py`, `study.py`, `regret.py` |
 | **The real 5G network** (Open5GS + UERANSIM_XN) | 80 real AMF, SMF and UPF processes, real gNBs and real UEs. It **executes** the decisions: every job that HOLD finishes becomes one real handover on the AMF, SMF and UPF that HOLD chose for it | `setup.sh`, `core.py`, `ran.py`, `check_paths.py`, `testbed.py` |
 
 `topology.py` (step 1) computes the satellite geometry: which satellites can be the targets of a
@@ -57,6 +57,7 @@ handover. It describes the setting; the slot loop does not read it.
 4. Algorithm 1 uses the gradient and the virtual queues `Z` to compute the next `x` and `B`.
 
 `sim.py` runs only this. `study.py` runs it many times with other parameters or other costs.
+`regret.py` runs it and compares its cost, slot by slot, with the paper's benchmark.
 
 **The role of Open5GS** (what `testbed.py` adds to the same loop):
 
@@ -239,7 +240,7 @@ is 5 % shorter and the shifts of `x` and of the queues are the same. Switched to
 |---|---|
 | `phi` (processing) | `quad` u²/2 · `quartic` u²/2 + u⁴/4 · `steep` u²/2 + u⁸/8 · `mm1` u/(1−u) (the classical delay formula, extended past u = 0.9) · `power4` u⁴/4 · `power8` u⁸/8 |
 | `psi` (queueing) | `none` · `linear` r · `quad` r²/2 · `cubic` r³/3 |
-| `load` (what `φ` is applied to) | `own`: what each node processes itself, `B_i / cap_i` · `child`: what each edge offers to its child, `λ_ij·Y_ij / cap_j` (the paper's wording) |
+| `load` (what `φ` is applied to) | `own`: what each node processes itself, `B_i / cap_i` · `child`: what each edge offers to its child, `λ_ij·Y_ij / cap_j` (the paper's wording) · `subtree`: `own`, plus what each edge offers to the child's whole subtree against the subtree's bottleneck capacity `cap_sub_j = min(cap_j, Σ_k cap_sub_k / λ_jk)` (added 16 Nov; worse, not used: see "Points for the paper") |
 | `drain` | `plain`: `R_i` counts `B_i` as served · `capped`: counts `min(B_i, cap_i)`, so allocating beyond the capacity drains nothing (has a kink at `B_i = cap_i`) |
 
 ## Experiments: commands and expected output
@@ -318,7 +319,8 @@ behaviour".
 
 ### 7. Cost comparison — `python3 study.py costs` (about 15 min, no core needed)
 
-All 84 combinations of the cost options, same run (seed 1).
+All combinations of the cost options, same run (seed 1): 126 since `load: subtree` was added
+(16 Nov); the results below are from the last run, with 84.
 Output: `results/study/costs.csv`, `costs.png` (time in system against busy-node queue peak,
 one dot per option). Expected: the option in use is first by time in system (6.44 slots); see
 "Cost comparison".
@@ -343,7 +345,124 @@ NF in every slot), `testbed.png`, and the same `slots.csv`, `nodes.csv`, `overvi
 
 When finished: `python3 core.py stop`.
 
+### 9. HOLD against the paper's benchmark — `python3 regret.py` (about 12 min), `regret.py sweep` (about 15 min), `regret.py theory` (about 10 min), no core needed
+
+The paper's benchmark `Y*[t]` is the allocation that minimises the same cost `L_t` of slot `t`
+under the same constraints and with every flow constraint met in that slot (`g_i^t(Y*) ≤ 0`).
+`L_t` is known once slot `t` is over, so `regret.py` records each slot's queues, capacities, `γ`
+and `λ` during the run and afterwards solves one convex problem per slot (132 edge allocations,
+scipy SLSQP, the 4 cores in parallel). Dynamic regret `R_t = Σ_τ≤t [L_τ(Y[τ]) − L_τ(Y*[τ])]`.
+
+Two scenarios: `current` (the environment of `sim.py`) and `steady`, the theory check: 32 jobs
+per slot, every job `s = 2` with `p` at its mean, no background load, no busy periods, so the
+best allocation hardly moves. `sweep` runs `steady` for `V` = 1, 2, 4, 8, 16, 32 with `α = 25·V`
+(benchmark solved in one slot out of 4).
+
+`theory` checks the paper's theorem and corollary in the `steady` scenario, for horizons
+`T` = 500, 1000, 2000, 4000, against the benchmark **with a variation budget**: one static
+allocation for the whole run (path length 0, `δ = 0`), the best one in hindsight that meets
+every flow constraint in every slot. It runs HOLD twice per `T`: with `V = 4`, `α = 100`, and
+with the corollary's scaling `V = √T`, `α = T^(1−δ/2)` (= `T` for `δ = 0`).
+
+Output in `results/regret/`: `current.csv`, `steady.csv` (per slot: HOLD's cost, the benchmark's
+cost, regret, flow violation, `ΣZ`, backlog), `regret.png` (per scenario: cost of HOLD and of
+the benchmark, `R_t`, `R_t / t` and the gap per slot, flow violation `/ t`), `sweep.csv`,
+`sweep.png`. Expected printout:
+
+    current: 3200 slots solved, 0 not converged
+      mean cost per slot after the warm-up: HOLD 305.4   benchmark 264.2   ratio 1.16
+           t  regret R_t  R_t / t  gap per slot (last 200)  max_i [Σg]+ / t
+        3200      157904    49.34                    35.68           0.0085
+    steady: 3200 slots solved, 0 not converged
+      mean cost per slot after the warm-up: HOLD 68.6   benchmark 60.0   ratio 1.14
+        3200       48009    15.00                     6.73           0.0007
+      benchmark path length ...  3200   35406   33440.4   delta_B 0.96  delta_x 1.01
+
+`theory` writes `theory.csv` and `theory.png` (`R_T / T`, flow violation `/ T` and `‖Z[T]‖`
+against `T`) and prints one line per run, for example
+
+    corollary T  4000  V 63.2  alpha 4000.0 ... R_T/T 5.64  violation/T 0.0000  ||Z[T]|| 82.5
+    fixed     T  4000  V  4.0  alpha  100.0 ... R_T/T 4.93  violation/T 0.0005  ||Z[T]|| 14.1
+
 ## Results
+
+### Interpretation: what supports the paper (16 Nov 2026)
+
+**Scenarios.** `current` is the environment of every main experiment (`sim.py`, `study.py`,
+`testbed.py`): 16–48 random jobs per slot, random `s` and `p`, every node's capacity drifting at
+random (background 0–50 %), and the four busy periods. `steady` is used only to check the
+theorem: 32 jobs per slot, every job `s = 2` with mean `p`, no background, no busy periods.
+
+**One table for the four busy periods** (`current`, mean of seeds 1–3; before = the 200 slots
+before, onset = its first 50 slots, during = the rest, after = 150–350 slots after it; "siblings"
+= mean of the other children of the same parent; time in slots):
+
+| | AMF `sat1.a0` −80 % | SMF `sat2.a0.s1` −70 % | satellite `sat3` −50 % | TN −50 % |
+|---|---|---|---|---|
+| its share of the siblings' capacity: before → during | 0.44 → 0.16 | 0.33 → 0.14 | 0.25 → 0.12 | 0.28 → 0.15 |
+| its routing share `x`: before → during → after | 0.50 → 0.19 → 0.52 | 0.33 → 0.14 → 0.32 | 0.25 → 0.12 → 0.24 | 0.27 → 0.14 → 0.27 |
+| its `B`: before → during → after | 4.2 → 1.7 → 4.6 | 3.0 → 1.3 → 2.9 | 8.9 → 4.2 → 8.3 | 9.5 → 4.8 → 9.3 |
+| siblings' `B`: before → during | 4.2 → 4.7 | 3.0 → 3.0 | 9.0 → 10.1 | 8.6 → 9.9 |
+| its queue: before / onset / during / after | 4.7 / 7.7 / 5.8 / 4.4 | 3.6 / 3.7 / 2.5 / 4.7 | 8.3 / 20.8 / 8.3 / 8.6 | 8.9 / 19.1 / 7.9 / 8.8 |
+| its CPU use (of what it has): before → during | 0.79 → 0.99 | 0.63 → 0.70 | 0.67 → 0.77 | 0.70 → 0.75 |
+| siblings' CPU use: before → during | 0.63 → 0.79 | 0.63 → 0.70 | 0.67 → 0.74 | 0.72 → 0.80 |
+| CPU use of the NFs inside the busy platform / of the other platforms: before → during | | | 0.67 / 0.68 → 0.66 / 0.78 | 0.67 / 0.64 → 0.72 / 0.80 |
+| queueing time per job at it: before / onset / during / after | 0.25 / 7.1 / 4.5 / 0.08 | 0.38 / 2.6 / 1.8 / 0.87 | 0.03 / 2.6 / 1.1 / 0.13 | 0.04 / 2.7 / 0.8 / 0.07 |
+| its cost: before / onset / during / after | 3.7 / 37.8 / 17.2 / 2.4 | 2.5 / 7.2 / 3.5 / 5.1 | 4.1 / 40.9 / 13.5 / 6.2 | 4.7 / 40.1 / 8.1 / 4.9 |
+| whole system, time in system: before → during → after | 5.7 → 6.4 → 5.6 | 5.5 → 5.6 → 6.2 | 5.9 → 7.9 → 5.9 | 5.4 → 10.4 → 5.9 |
+| real Open5GS CPU share among siblings (`testbed.py`, seed 1): before → during → after | 0.51 → 0.25 → 0.54 | 0.34 → 0.20 → 0.29 | 0.26 → 0.14 → 0.25 | 0.26 → 0.15 → 0.27 |
+
+**How to read it, in one sequence** (the same at the access level, root → platforms, and at the
+core-function levels, dispatcher → AMF → SMF → UPF):
+
+1. **Capacity drops** at one node. Its `B` and `x` are still the old ones, so in the first slots
+   it receives more than it can process: **its queue, its queueing time and its cost jump**
+   (onset column: cost ×4 to ×10).
+2. **The cost gradient reports it** (high utilisation and a growing backlog at that node), and
+   Algorithm 1 moves `x` away from it within a few slots (half of the shift in 0–2 slots at the
+   AMF, SMF and TN, 17–19 at `sat3`) and lowers its `B` to what it can now process.
+3. **The siblings take the traffic:** their `B`, arrivals and CPU use rise (0.63 → 0.79 for the
+   AMF's sibling).
+4. **During the busy period the busy node's queue is back at its normal size** (or below) and its
+   cost falls; it keeps using what it has (0.70–0.99 of its remaining CPU), it is not abandoned.
+5. **After the period** `x` and `B` return to the old values within a few hundred slots.
+
+**The results that support the paper most:**
+
+* **HOLD learns capacity-proportional routing from cost feedback alone.** During every busy
+  period the routing share equals the node's share of the siblings' capacity (0.19 against
+  0.16, 0.14 against 0.14, 0.12 against 0.12, 0.14 against 0.15), at the access level and at the
+  core-function levels, and so does the TN's larger share in normal times (0.272 against 0.243
+  per satellite; TN capacity is 10 % larger). The algorithm never sees a capacity: only the
+  gradient after each slot, as the paper's feedback model says.
+* **Utilisation is balanced across the tree.** The load lost by the busy node goes to its
+  siblings, whose CPU use rises, and inside a busy platform the NFs stay at their normal CPU use
+  (0.66–0.72) while the other platforms rise to 0.78–0.80.
+* **The flow constraint holds in the long run** (`[Σ g]+ / T` → 0) **and the virtual queues stay
+  bounded**, in both scenarios: the paper's flow-consistency requirement and queue lemma.
+* **The cost is close to the best possible:** 14–16 % above the best feasible allocation of every
+  slot, chosen afterwards; and against a benchmark with a variation budget the regret per slot
+  falls with `T` (`steady`), as the theorem and corollary say.
+* **The decisions are executable** on a real 5G core, and the real NF CPU follows the routing.
+
+**What the table also shows (and the paper should say):**
+
+* **The busy node's queueing time stays high while it is busy** (4.5 slots at the −80 % AMF,
+  against 0.25 before). HOLD keeps its queue at the usual number of jobs, but it now serves 5
+  times fewer per slot, so each job waits about 5 times longer. The cost counts the backlog in
+  slots of work, so it sees this, but it balances it against the siblings' cost; the paper's
+  guarantees are on the cost, not on job delay.
+* **How much the whole system suffers depends on how much capacity disappears and on the
+  siblings' spare capacity.** A busy SMF (3 % of the SMF capacity) is absorbed (5.5 → 5.6 slots),
+  a busy AMF (10 % of the AMF capacity) almost (5.7 → 6.4). Half of `sat3` and half of the TN
+  remove about the same share of the total (12.5 % and 13 %), but the TN period costs more
+  (5.4 → 10.4 slots against 5.9 → 7.9) because the satellites that take its traffic had less
+  spare capacity at that time (11.9 jobs per slot against 13.1 in the `sat3` period), so their
+  queues grow (8 → 20). Everything still completes and returns to normal afterwards.
+* **The access level reacts more slowly** to a whole platform (`sat3`: 17–19 slots for half of the
+  shift) than the core-function levels to one NF (0–2 slots): the platform's congestion is spread
+  over its dispatcher and 20 NFs.
+
 
 ### How HOLD reacts to congestion (`results/sim/`)
 
@@ -434,6 +553,63 @@ Reading:
   system 4.32, 4.25, 4.25, 4.57, 5.48 for `V` = 1, 2, 4, 8, 16); the plain `u²/2` was unstable
   for `V ≤ 2`.
 
+### HOLD against the paper's benchmark (`results/regret/`)
+
+| Scenario | Cost per slot after the warm-up: HOLD / benchmark | Gap per slot at t = 400, 800, 1600, 3200 (200-slot means) | `R_t / t` at t = 3200 | Flow violation `max_i [Σg_i]+ / t` at t = 400, 1600, 3200 |
+|---|---|---|---|---|
+| `current` | 305.4 / 264.2 (×1.16) | 44.1, 41.9, 38.4, 35.7 | 49.3 | 0.044, 0.0085, 0.0085 |
+| `steady` | 68.6 / 60.0 (×1.14) | 18.1, 10.1, 6.8, 6.7 | 15.0 | 0.0095, 0.0014, 0.0007 |
+
+`V` sweep, `steady`, `α = 25·V`:
+
+| `V` | 1 | 2 | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|---|---|
+| gap per slot (HOLD − benchmark) | 635 | 100 | 8.6 | 6.3 | 5.9 | 6.0 |
+| flow violation `/ T` | 0.0076 | 0.0047 | 0.0007 | 0.0014 | 0.0020 | 0.0016 |
+| mean `ΣZ` | 584 | 249 | 93 | 107 | 135 | 248 |
+
+What this shows:
+
+* **Flow violation → 0** in both scenarios (the paper's `[Σ_t g_i]+ = o(T)`).
+* **HOLD's cost stays within 14–16 % of the per-slot benchmark**, the best feasible allocation of
+  every single slot, known only afterwards. In some slots HOLD's cost is below it (by up to
+  about 50): HOLD may run a small temporary flow deficit, the benchmark may not.
+* **Against this benchmark the regret grows linearly, and the theorem expects that.** Its path
+  length grows linearly in both scenarios (`P_B` and `P_x` double when `T` doubles: `δ ≈ 1.0`).
+  The corollary needs `δ < 1`; with `δ = 1` the theorem's bound is `O(T)`. In `steady` the
+  per-slot optimum still jumps from slot to slot: below the capacity the cost `u⁴/4` is almost
+  flat, so many allocations are about equally good, and small changes of the queues move the
+  optimum among them. The paper's benchmark is the best sequence **within a variation budget**,
+  which is what `regret.py theory` uses (next section).
+* **`V` trade-off** (`steady`, `α = 25·V`, per-slot benchmark): `V ≤ 2` is unstable; from `V = 4`
+  the gap falls slowly with `V` (8.6 → 5.9) while `ΣZ` grows (93 → 248). With `V / α` fixed the
+  theorem's term `T·V·K₁·F / α` (after dividing by `V`) is linear in `T`, so a constant gap per
+  slot is what the theorem allows here too.
+
+### The paper's theorem, checked (`regret.py theory`, `steady` scenario)
+
+Benchmark: one static allocation (`δ = 0`), the best in hindsight that meets every flow
+constraint in every slot. All runs start from `B = 0`.
+
+| Setting | `T` | `V` | `α` | `R_T / T` | Flow violation `/ T` | `‖Z[T]‖` | `‖Z[T]‖ / T^(3/4)` |
+|---|---|---|---|---|---|---|---|
+| fixed | 500 / 1000 / 2000 / 4000 | 4 | 100 | 28.2 / 15.8 / 8.6 / 4.9 | 0.0073 / 0.0017 / 0.0009 / 0.0005 | 19 / 14 / 14 / 14 | 0.18 / 0.08 / 0.05 / 0.03 |
+| corollary | 500 / 1000 / 2000 / 4000 | √T = 22–63 | T = 500–4000 | 22.1 / 14.3 / 9.1 / 5.6 | 0.014 / 0 / 0 / 0 | 37 / 62 / 63 / 83 | 0.35 / 0.35 / 0.21 / 0.16 |
+
+* **The theorem's claims hold here:** the regret per slot falls with `T` (with the corollary's
+  scaling about as `T^(−0.65)`, faster than the guaranteed `T^(−1/2)`), the flow violation goes
+  to 0, and `‖Z‖` grows slower than `T^(3/4)`.
+* **But a small regret does not mean a good system.** With `α = T` HOLD adapts very slowly: the
+  backlog is about 1 500 jobs over the first 500 slots (the fixed setting: 334), and even after
+  slot 2000 its cost per slot is 105.7 against 68.5 for the fixed setting, with 6.8 slots in the
+  system against 4.6. The regret stays small because the benchmark is charged on the same
+  queues: the cost depends on HOLD's own physical queues, so a backlog HOLD created is a cost
+  the benchmark pays too. Physical metrics (backlog, time in system) have to be reported next to
+  the regret.
+* With fixed `V` and `α` the regret per slot also falls in `steady` (against the static
+  benchmark), and the system is better: the corollary's scaling is for the asymptotic guarantee,
+  moderate fixed values are better in practice.
+
 ### What Open5GS adds (`results/testbed/`)
 
 How Open5GS is used is explained in "What the code does, in simple words". The curves of
@@ -505,6 +681,93 @@ uses (100 %, 69 %, 68 %, 71 %).
    and the allocation reacts to it, the two differ systematically. With `λ` measured per edge
    and `α = 30` the violation `[Σg]+/T` stayed at 0.18 jobs per slot; with `λ` measured per AMF
    it goes to 0.
+4. **The virtual queue `Z = max{−g, Z + g}` rewards over-allocation.** When a node allocates more
+   than it receives (`g < 0`), `Z_i ≥ −g = B_i − arrivals`, and the term `−Z_i` in its own
+   `c_ij` pushes `B_i` up further: only the cost holds it back. Seen three times:
+   * a leaf without a cost: `B_leaf → B_max`, its `Z ≈ B_max − arrivals` (step 3);
+   * the steady scenario without the queue term `ψ`: the root's `B` runs to `B_max` = 64 for 32
+     jobs per slot, `Z_root = 32`, and the cost is 16 times the benchmark's;
+   * a congested node looks attractive to its parent. At slot 1970 the dispatcher `sat1` had a
+     queue of 51 (its capacity had drifted to 8.9 jobs per slot against 14.7 at the healthy
+     platforms). The cost told the root to avoid it (`V·∂L/∂Y` = 23 against 2–3 for the others),
+     but `sat1` had raised its `B` to drain its queue, which emptied its virtual queue (`Z` 4.9
+     against about 22), so `λ·Z_j − Z_0` was −8 against +8 to +9: the two terms cancel and the
+     root kept its share at 0.28.
+   Two different effects are in this list. (a) **Runaway** (the first two): with the paper's
+   floor `Z ≥ −g`, over-allocation raises `Z_i`, which raises `B_i` further. A standard virtual
+   queue `Z = max{0, Z + g}` would not do this (over-allocation empties it). (b) **A congested
+   node looks cheap** (the third): under both forms a node that over-allocates to drain its
+   physical queue ends up with a small `Z`, and `Z` acts as the price of sending work to it.
+   Remedies tried (3 seeds, current scenario; time in system / backlog / largest queue of
+   another platform while `sat3` and the TN are busy):
+   | Variant | Time | Backlog | Other-platform peaks | Dispatcher share of a congested AMF: onset → lowest |
+   |---|---|---|---|---|
+   | as now | 6.76 | 342 | 37, 59 | 0.54 → 0.46 |
+   | `drain: capped` (no credit for allocating beyond the capacity) | 8.12 | 410 | 38, 53 | 0.55 → 0.44 |
+   | `V = 16`, `α = 400` (the cost weighs more against `Z`) | 12.04 | 526 | 59, 91 | 0.60 → 0.38 |
+   | standard `Z = max{0, Z + g}` (changes the algorithm; scratch test only) | 7.79 | 379 | 42, 69 | 0.55 → 0.46 |
+   None is better overall, so nothing was changed. The paper's floor `−g` is part of the
+   analysis (as far as I know, the same update is used in Yu and Neely's low-complexity online
+   algorithm with long-term constraints; to confirm), so changing it means changing the proofs. Suggestion: keep it, describe effect (b) as a
+   property of the dual prices (a node that drains its backlog advertises a low price), and
+   keep a cost term on every node's own `B` (as now) so that effect (a) cannot run away.
+5. **A subtree-aware cost does not fix point 4.** `load: subtree` adds, for every edge, the load
+   offered to the child's whole subtree against its bottleneck capacity. Three seeds: time in
+   system 7.84 against 6.76 slots, other platforms' queue peaks during the `sat3` and TN periods
+   46 and 76 against 37 and 59, the root's share of `sat1` unchanged (0.27–0.29).
+
+## Code against the paper (checked 16 Nov 2026)
+
+| Paper | Code | Status |
+|---|---|---|
+| `c_ij = V·∇_{Y_ij} L_t(Y[t]) + λ_ij[t]·Z_j[t] − Z_i[t]`, `ω_ij = λ_ij·Z_j − Z_i` | `hold.py`, `Hold.step` | same |
+| `x` step: `argmin_{x ∈ X_i} Σ_j c_ij·x_ij + α·KL(x_i ‖ x_i[t])`, `x_ij ≥ ρ` | `x_update`: closed form with the floor `ρ` | same; matches a numerical solver within 3·10⁻⁷ on 300 random cases |
+| `B` step: `argmin_{B ∈ [0, B_max]} B·[Σ_j c_ij·x_ij[t+1] + α·KL] + α·½(B − B_i[t])²` | `B = clip(B[t] − slope/α, 0, B_max)` | same; matches a grid search exactly |
+| `Z_i[t+1] = max{−g_i^t(Y[t+1]), Z_i[t] + g_i^t(Y[t+1])}`, `Z[1] = 0` | end of `Hold.step` | same, with `λ[t]`, `γ[t]` and the new allocation |
+| leaf: dummy sink, `Y_{i,sink} = B_i`, `x = 1` | `children()` returns `sink`, `Z_sink = 0` | same |
+| `λ_ij ≥ 1`, 1 except AMF → SMF | `λ` = session tasks per job, per AMF and slot | same |
+| `L_t^i` only for non-leaf nodes, `L_t = Σ_i L_t^i(Y_i)` | every node has a cost on its own `B` (leaves too), and the queue term couples a node with its parent | **different**, on purpose (points 1 and 2) |
+| `V = O(√T)`, `α = O(T^(1−δ/2))` for the corollary | `V = 4`, `α = 100` fixed; the corollary's scaling only in `regret.py theory` | **different**, on purpose (see "The paper's theorem, checked") |
+| `B[1]`, `x[1]` not specified | `B[1] = 0`, `x[1]` uniform | choice |
+
+## Is the paper consistent? (review of the text, 16 Nov 2026)
+
+Mathematics that checks out: Lemma 1 (`⟨Z, g(Y) − g(Y*)⟩ = Σ ω_ij (Y_ij − Y*_ij)`, sign
+included); Lemma 2 (the drift bound holds for `Z = max{−g, Z + g}` in both cases); the
+corollary's arithmetic (`T·V/α`, `T·G/V` and `α·P/V` are all `O(T^((1+δ)/2))` with `V = √T`,
+`α = T^(1−δ/2)`); the queue lemma's arithmetic (`T^(1+δ/2)` and `T^(3/2)` give `T^(3/4)`).
+
+To fix or clarify:
+
+1. **Algorithm 1 and Lemma 3:** the sums are written `Σ_{j: j→i} [...] x_j[t]`. They should be over
+   the children, `Σ_{j ∈ C_i} [...] x_ij`, with `x_ij` the variable. As written, `x_j[t]` is the
+   old vector, and the `x` step would only minimise the KL term (`x` would never move).
+2. **Lemma 3:** a `+` is missing before `α·B·D_x`; `B ∈ B_i` should be `B ∈ [0, B_max]`.
+3. **Penalty for non-leaf nodes only:** leaves need a cost on `B` too (point 1 of "Points for the
+   paper"); with the dummy sink it is enough to write "for each node `i`".
+4. **Dynamic benchmark:** `L_t(Y*_i[t]) = B*_i[t]·x*_i[t]` should read `Y*_i[t] = B*_i[t]·x*_i[t]`.
+   The "prescribed variation budget" should be defined (e.g. `P_B(T) + P_x(T) ≤ P_T`): without
+   it the benchmark is the per-slot optimum, whose path length is linear here (`δ ≈ 1`) and the
+   corollary gives nothing.
+5. **Theorem:** `F` is not defined (the assumption defines only the gradient bound and `G`); the
+   gradient bound uses the same letter as the penalty `L` and the Lyapunov function; the domain
+   `A = R^{|C_i|} × R^{|C_i|}` is unclear.
+6. **Bounded gradient assumption:** a penalty that depends on the physical queues (as "processing
+   and queueing generate cost penalties" suggests) has a bounded gradient only if the queues are
+   bounded, which the paper says it does not guarantee. Worth a sentence.
+7. **Flow-violation result missing:** the requirement is `[Σ_t g_i^t(Y[t])]+ = o(T)`, but the
+   paper bounds `‖Z[T+1]‖`. The Z update gives `Σ_t g^t(Y[t+1]) ≤ Z[T+1]`, which is the constraint
+   at the *next* allocation; one more step (the per-slot movement `‖Y[t+1] − Y[t]‖` is
+   `O((V + ‖Z‖)/α)`) is needed to reach `Σ_t g^t(Y[t])`. A short corollary would close it.
+8. **Regret with state-dependent penalties:** the penalty depends on the physical queues, which
+   depend on past decisions; the benchmark is charged on the algorithm's own states, so slow
+   adaptation is not penalised (see "The paper's theorem, checked"). The evaluation should show
+   physical metrics next to the regret.
+9. **Remark on `|C_n| = |C_i|`:** our tree has 4, 2, 3 and 2 children per level; the theorem is
+   stated per node, so the remark seems unnecessary or should say what it is needed for.
+10. Typos: "Bergman", "virtual virtual-queue", `Σ_{j∈C_i} = 1` (missing `x_ij`), "≤ ≤" in the
+    queue lemma, "coordinates the processing of mobility-related across", `{n_1, n_2, ..} ∈ N`
+    (⊆).
 
 ## Plan and progress
 
@@ -533,7 +796,20 @@ uses (100 %, 69 %, 68 %, 71 %).
             stage, a busy period for each kind of node, congestion figures.
       - [x] Sweeps of `V`, `α`, `ρ`, `B_max`, load; cost comparison; testbed run, all on the
             current environment (15 Nov).
-      - [ ] Choose and style the final paper figures (with the user).
+- [ ] **Step 6 — check against the paper's claims** (16 Nov 2026).
+      - [x] Flow violation → 0, `Z` bounded and stationary, cost and backlog stationary.
+      - [x] Per-slot benchmark (`regret.py`): HOLD's cost 1.16 / 1.14 times the benchmark's; its
+            path length is linear (`δ ≈ 1`), so linear regret is what the theorem allows.
+      - [x] Theorem and corollary with a static benchmark (`regret.py theory`): regret per slot
+            falls with `T`, violation → 0, `‖Z‖` below `T^(3/4)`; the corollary's scaling adapts
+            slowly (large backlog) although its regret is small.
+      - [x] Code checked against the paper (section "Code against the paper").
+      - [x] Paper text reviewed (section "Is the paper consistent?").
+      - [x] Virtual-queue remedies tested: none better, nothing changed.
+      - [ ] Settle with the co-author: the review points, and points 1–4 of "Points for the paper".
+      - [ ] Several seeds for `events.png` and `response.png`.
+      - [ ] Show the real throughput next to `B` in the figures.
+      - [ ] Choose and style the final paper figures.
 
 ## Open points
 
@@ -573,6 +849,7 @@ uses (100 %, 69 %, 68 %, 71 %).
 | [sim.py](sim.py) | Runs `hold.py` on `env.py`; prints the checks; writes CSVs and the four figures | `python3 sim.py` |
 | [study.py](study.py) | Parameter sweeps (`sweep`) and the cost comparison (`costs`) | `python3 study.py sweep` / `costs` |
 | [testbed.py](testbed.py) | The `sim.py` run with every finished job executed as a real Xn handover; measures the CPU of the 80 NFs | `python3 testbed.py` |
+| [regret.py](regret.py) | HOLD against the paper's benchmark (best feasible allocation of each slot): dynamic regret, theory-check scenario, `V` sweep | `python3 regret.py` / `regret.py sweep` |
 
 ### How the tree is mapped onto Open5GS and UERANSIM
 

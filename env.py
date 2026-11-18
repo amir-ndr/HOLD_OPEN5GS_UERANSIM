@@ -47,6 +47,10 @@ Four choices, all kept as options (COST below picks one of each):
            "child"  every edge pays phi for what it offers to the child:  lambda_ij Y_ij / cap_j
                     (the paper's wording: the penalty of node i's allocation and of
                     its distribution among downstream functions); a leaf pays for B_i
+           "subtree" as "own", plus every edge pays phi for what it offers to the child's
+                    whole subtree, against the subtree's bottleneck capacity
+                        cap_sub_j = min( cap_j, sum_k cap_sub_k / lambda_jk )  (k = children of j)
+                    so a parent sees congestion anywhere below its child, not only at the child
     drain  "plain"  served_i = B_i
            "capped" served_i = min(B_i, cap_i): allocating beyond the capacity drains nothing
 
@@ -54,6 +58,7 @@ Gradient reported for edge (i, j):
 
     dL/dY_ij =   phi'(B_i / cap_i)                            load "own"
                | lambda_ij * phi'(lambda_ij Y_ij / cap_j)     load "child"
+               + lambda_ij * phi'(lambda_ij Y_ij / cap_sub_j)  load "subtree" (j not a leaf)
                - psi'(R_i / cap_i)                node i drains its own backlog
                + lambda_ij * psi'(R_j / cap_j)    child j's backlog grows
 
@@ -115,7 +120,7 @@ PSI = {"none": (lambda r: 0.0, lambda r: 0.0),                   # name: (psi, p
        "linear": (lambda r: r, lambda r: 1.0 if r > 0 else 0.0),
        "quad": (lambda r: r * r / 2, lambda r: r),
        "cubic": (lambda r: r ** 3 / 3, lambda r: r * r)}
-LOAD = ("own", "child")
+LOAD = ("own", "child", "subtree")
 DRAIN = ("plain", "capped")
 
 STAGE = {"root": "disp", "disp": "disp", "amf": "amf", "smf": "smf", "upf": "upf"}
@@ -274,7 +279,7 @@ class Env:
                     self.lam[i, j] = sum(sent[i, k][1] for k in n.children) / jobs
 
         cost, grad, util = self.feedback(Y, Q0, cap, gamma)
-        return dict(gamma=gamma, lam=dict(self.lam), grad=grad, cost=cost, util=util, cap=cap,
+        return dict(gamma=gamma, lam=dict(self.lam), grad=grad, cost=cost, util=util, cap=cap, Q0=Q0,
                     budget=budget, timing=timing, used=used, Q={i: self.backlog(i) for i in NODES}, done=done,
                     got={j: sum(self.size(j, x) for x in jobs) for j, jobs in arrivals.items()},
                     waiting=sum(len(q) for q in self.queue.values()))
@@ -283,7 +288,8 @@ class Env:
         """Cost of Y[t] and its gradient, as each node reports them."""
         phi, phi_p = PHI[self.cost["phi"]]
         psi, psi_p = PSI[self.cost["psi"]]
-        own, capped = self.cost["load"] == "own", self.cost["drain"] == "capped"
+        own = self.cost["load"] in ("own", "subtree")
+        capped = self.cost["drain"] == "capped"
         lam = self.lam
         B = {i: sum(Y[i, j] for j in children(i)) for i in NODES}
         util, left, drains, cost, grad = {}, {}, {}, {}, {}
@@ -307,4 +313,18 @@ class Env:
                 grad[i, j] -= drains[i] * psi_p(left[i])
                 if j != SINK:
                     grad[i, j] += lam[i, j] * psi_p(left[j])
+        if self.cost["load"] == "subtree":
+            sub = {}
+
+            def bottleneck(j):                       # throughput of j's subtree, in j's units
+                kids = NODES[j].children
+                sub[j] = cap[j] if not kids else min(cap[j], sum(bottleneck(k) / lam[j, k] for k in kids))
+                return sub[j]
+            bottleneck(ROOT)
+            for i in NODES:
+                for j in NODES[i].children:
+                    if NODES[j].children:
+                        offered = lam[i, j] * Y[i, j] / sub[j]
+                        cost[i] += sub[j] * phi(offered)
+                        grad[i, j] += lam[i, j] * phi_p(offered)
         return cost, grad, util
